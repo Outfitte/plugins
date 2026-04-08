@@ -9,11 +9,6 @@
   },
   "plugins": [
     {
-      "name": "tdd",
-      "source": "./plugins/tdd",
-      "description": "TDD methodology for all coding tasks"
-    },
-    {
       "name": "go-commands",
       "source": "./plugins/go-commands",
       "description": "Go build and test commands reference"
@@ -32,6 +27,11 @@
       "name": "split-issue",
       "source": "./plugins/split-issue",
       "description": "Decompose a GitHub issue into sub-issues"
+    },
+    {
+      "name": "implement-task",
+      "source": "./plugins/implement-task",
+      "description": "Full workflow for implementing a GitHub issue from branch creation to PR review (includes TDD skill and pr-reviewer agent)"
     }
   ]
 }
