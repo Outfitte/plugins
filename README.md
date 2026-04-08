@@ -26,4 +26,4 @@ Then install individual plugins:
 | `gh-cli` | GitHub operations via `gh` CLI — issues, PRs, milestones, sub-issues, releases |
 | `create-issues` | Bulk-create GitHub issues from a JSON task file and link them to a milestone |
 | `split-issue` | Decompose a GitHub issue into sub-issues per method, endpoint, or handler |
-| `implement-task` | Full workflow for implementing a GitHub issue from branch creation to PR review (includes TDD skill) |
+| `implement-task` | Full workflow for implementing a GitHub issue from branch creation to PR review (includes TDD skill and pr-reviewer agent) |

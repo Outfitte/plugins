@@ -8,6 +8,14 @@ description: Use this skill when the user invokes /implement-task or asks to imp
 Full workflow for implementing a GitHub issue from start to PR review.
 Follow all branch, commit, and PR conventions from CLAUDE.md.
 
+## Step 0 — Detect current repo
+
+```bash
+REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+```
+
+Use `$REPO` for all `gh` commands throughout this workflow.
+
 ## Step 1 — Get the issue number
 
 If the user didn't provide an issue number, ask: "Which issue number should I work on?"
@@ -15,7 +23,7 @@ If the user didn't provide an issue number, ask: "Which issue number should I wo
 ## Step 2 — Read the issue
 
 ```bash
-gh issue view <number> --repo Outfitte/Outfitte
+gh issue view <number> --repo $REPO
 ```
 
 Read the full issue body and any linked context before proceeding.
@@ -78,12 +86,14 @@ EOF
 )"
 ```
 
-## Step 7b — Post coverage report as PR comment
+## Step 7b — Post coverage report as PR comment (Go projects only)
+
+Skip this step if the project is not a Go project.
 
 Identify which Go packages were modified from the staged files, then run coverage for those packages only:
 
 ```bash
-go test -coverprofile=coverage.out ./internal/<modified-packages>/...
+go test -coverprofile=coverage.out ./<path-to-modified-packages>/...
 go tool cover -func=coverage.out
 ```
 
@@ -96,7 +106,7 @@ Extract the total coverage percentage from the last line of `go tool cover -func
 Post the standard comment:
 
 ```bash
-gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
+gh pr comment <pr_number> --repo $REPO --body "$(cat <<'EOF'
 ## Coverage report
 \`\`\`
 <coverage output>
@@ -113,7 +123,7 @@ EOF
 4. Only after exhausting all feasible tests, post a comment that includes both the coverage output AND a mandatory justification section — one entry per under-covered function:
 
 ```bash
-gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
+gh pr comment <pr_number> --repo $REPO --body "$(cat <<'EOF'
 ## Coverage report
 \`\`\`
 <coverage output>
@@ -121,7 +131,7 @@ gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
 
 ## Why coverage is not 100%
 
-- `internal/adapter/store/json/foo.go: Bar()` — 85.7%: the `os.WriteFile` error path requires OS-level fault injection and cannot be triggered in unit tests
+- `<package>/foo.go: Bar()` — 85.7%: the `os.WriteFile` error path requires OS-level fault injection and cannot be triggered in unit tests
 - ...one entry per under-covered function...
 EOF
 )"
@@ -138,26 +148,21 @@ Spawn two **background** subagents in parallel: a `pr-reviewer` (`subagent_type:
 Spawn with `subagent_type: "pr-reviewer"`. Do not pass file contents — let it fetch from GitHub:
 
 ```
-Review PR #<pr_number> in the Outfitte/Outfitte repo.
+Review PR #<pr_number> in the $REPO repo.
 
 Run:
-  gh pr view <pr_number> --repo Outfitte/Outfitte
+  gh pr view <pr_number> --repo $REPO
   git diff main
 
-## Architecture checks (CLAUDE.md)
-- Branch, commit, and PR title follow naming conventions
-- Domain stays pure: internal/domain and internal/ports never import from adapters or api
-- context.Context is first arg in every method, named ctx, never blanked with _
-- ctx.Err() is checked before any lock or I/O at the start of functions
-- Infrastructure errors are wrapped with domain sentinels at the adapter boundary (e.g. fmt.Errorf("%w: %w", domain.ErrIO, err)) — raw os/encoding errors must not leak to callers
+## Convention checks (CLAUDE.md)
+- Read CLAUDE.md first and check that branch, commit, and PR title follow the documented naming conventions
+- Check for any architecture or structural rules defined in CLAUDE.md and flag violations
 
 ## TDD checks
 - Failure/error case tests come before happy-path tests
-- New methods start from an `errors.New("not implemented")` stub (evidenced by commit history if available)
-- Error assertions use require.ErrorIs against domain sentinels — not require.ErrorContains against stdlib message strings
-- Test entities use explicit IDs (not zero values) where identity matters
-- t.Context() is used instead of context.Background() in tests
-- Extracted helpers (pure functions) have 100% coverage independently
+- New methods start from a stub that immediately fails (evidenced by commit history if available)
+- Test names are descriptive and follow the project's naming convention
+- Test entities use explicit, readable values (not zero/empty defaults) where identity matters
 
 Report any violations, concerns, or suggestions. If everything looks good, say so.
 ```
@@ -169,10 +174,10 @@ Report the review findings to the user once complete.
 Spawn with `subagent_type: "Code Reviewer"`. Pass the following prompt so it knows where to find the code:
 
 ```
-Review the code changes in PR #<pr_number> of the Outfitte/Outfitte GitHub repo.
+Review the code changes in PR #<pr_number> of the $REPO GitHub repo.
 
 Fetch the diff using:
-  gh pr view <pr_number> --repo Outfitte/Outfitte
+  gh pr view <pr_number> --repo $REPO
   git diff main
 
 Focus on correctness, security, maintainability, and performance. Report any blockers, suggestions, or nits. If everything looks good, say so.
@@ -193,7 +198,7 @@ Examples of things worth capturing:
 ### What to update
 
 - **CLAUDE.md** — for project-wide conventions, handler guidelines, architecture rules, or patterns that every future implementation should follow
-- **Memory files** — for patterns specific to a sub-system (e.g. JSON adapter), feedback about how to collaborate, or anything that isn't a hard project rule
+- **Memory files** — for patterns specific to a sub-system, feedback about how to collaborate, or anything that isn't a hard project rule
 
 If nothing non-obvious came up, skip this step — do not invent learnings.
 
@@ -207,4 +212,4 @@ Add the learning under the most relevant existing section, or create a new secti
 
 ### How to update memory
 
-Use the Write tool to create or update the relevant memory file in `/home/maxime/.claude/projects/-home-maxime-Development-Outfitte/memory/`, then update `MEMORY.md` with a pointer if it's a new file.
+Use the Write tool to create or update the relevant memory file in the project's memory directory (check `~/.claude/projects/` for the matching project path), then update `MEMORY.md` with a pointer if it's a new file.

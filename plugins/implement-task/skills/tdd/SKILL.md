@@ -6,9 +6,11 @@ user-invocable: false
 
 Apply the RED-GREEN-REFACTOR cycle strictly. No production code exists before a failing test.
 
+> **Language note:** The examples below use Go. Apply the same methodology in whatever language the project uses — the cycle, ordering, and extraction rules are language-agnostic.
+
 ## Test Naming
 
-Name every test following this pattern: `<WhatIsTested>Should<Expectation>When<Given>`
+Name every test to make the intent self-documenting. A good pattern: `<WhatIsTested>_<Expectation>_<Given>` or `<WhatIsTested>Should<Expectation>When<Given>` — adapt to the project's existing convention.
 
 Examples:
 - `TestParseShouldFailWhenGivenNilInput`
@@ -21,25 +23,26 @@ Examples:
 1. Write failure/error case tests first (file not found, invalid input, cancelled context, etc.)
 2. Write the happy path last
 
-This ordering guarantees the "not implemented" stub fails each test for the right behavioral reason before any logic is written.
+This ordering guarantees the stub fails each test for the right behavioral reason before any logic is written.
 
 ## Stub Pattern
 
 Start every new function/method with a stub so the very first test always fails:
 
 ```go
+// Go example
 func (p *Provider[T]) Save(_ context.Context, _ T) error {
     return errors.New("not implemented")
 }
 ```
 
-Keep `return errors.New("not implemented")` at the bottom through each intermediate implementation step. Only remove it when implementing the final happy-path test.
+Keep the "not implemented" stub at the bottom through each intermediate implementation step. Only remove it when implementing the final happy-path test.
 
 ## RED Phase
 
 1. Write one test that describes the next desired behavior
-2. Run it — confirm it fails for the right reason (behavioral failure, not compile error)
-3. If it fails due to a compile error, fix compilation without adding any logic
+2. Run it — confirm it fails for the right reason (behavioral failure, not compile/syntax error)
+3. If it fails due to a compile/syntax error, fix compilation without adding any logic
 
 ## GREEN Phase
 
@@ -71,9 +74,7 @@ Use active-verb names that describe *what is done*, not *how*:
 - `saveSession(ctx, userID, rawToken)` — not `sessionCreation`
 - `retrieveSession(ctx, sessionID, rawRandom)` — not `getSessionHelper`
 
-### Example
-
-**Example 1:**
+### Example (Go)
 
 Before (post-GREEN, no extraction yet):
 ```go
@@ -117,44 +118,35 @@ Candidates identified: "find user + verify password" (3 lines, one coherent step
 
 ## Error Assertions
 
-Always assert on **domain error sentinels** using `require.ErrorIs`, never pin to stdlib message strings with `require.ErrorContains`:
+Assert on **domain/sentinel errors** using the language's idiomatic equality check, never pin to error message strings:
 
 ```go
-// correct
+// Go — correct
 require.ErrorIs(t, err, domain.ErrIO)
 
-// wrong — brittle, couples test to stdlib internals
+// Go — wrong (brittle, couples test to stdlib internals)
 require.ErrorContains(t, err, "no such file or directory")
 ```
 
-Infrastructure errors (os, encoding/json, etc.) must be wrapped at the adapter boundary before returning:
+Wrap infrastructure errors at the boundary before returning so callers receive typed sentinels:
 
 ```go
+// Go example
 return fmt.Errorf("%w: %w", domain.ErrIO, err)
 ```
 
-Add domain error sentinels at the point they are first needed — no pre-emptive catalogue.
+Add error sentinels at the point they are first needed — no pre-emptive catalogue.
 
-## Context Conventions
+## Context / Cancellation Conventions (Go)
 
 - Name the parameter `ctx`, never blank it with `_`
 - Check `ctx.Err()` before any lock or I/O at the start of the function
 - In tests, use `t.Context()` instead of `context.Background()`
 - For cancellation tests, derive from `t.Context()`: `ctx, cancel := context.WithCancel(t.Context())`
 
-## Test Entity IDs
+## Test Entity Values
 
-Use explicit, readable IDs (e.g. `"42"`) rather than zero values. For types with unexported embedded ID fields, use field assignment instead of struct literals:
-
-```go
-// correct — explicit ID via assignment
-var user domain.User
-user.ID = "42"
-user.Email = "alice@example.com"
-
-// wrong — zero ID makes intent unclear
-user := domain.User{Email: "alice@example.com"}
-```
+Use explicit, readable values (e.g. `"42"`, `"alice@example.com"`) rather than zero/empty defaults — intent is clearer and failures are easier to diagnose.
 
 ## Coverage Rules
 
@@ -172,14 +164,12 @@ After all RED-GREEN-REFACTOR cycles are complete and tests pass, do a final pass
 3. Extract remaining candidates into named helpers
 4. Re-run tests and confirm coverage is stable
 
-This mirrors the review pattern seen in service implementations: reviewers consistently ask for extraction of "find user", "save session", "retrieve session", and "refresh session" style helpers. Proactively extracting these avoids post-merge review cycles.
-
 ## TDD Compliance Checks
 
 Before writing any production code, confirm:
 - [ ] A failing test exists
-- [ ] The test fails for a behavioral reason, not a compile error
-- [ ] The test name follows `<WhatIsTested>Should<Expectation>When<Given>`
+- [ ] The test fails for a behavioral reason, not a compile/syntax error
+- [ ] The test name follows a clear `<what>_<expectation>_<condition>` pattern
 
 Before closing a GREEN phase, confirm:
 - [ ] All tests pass
