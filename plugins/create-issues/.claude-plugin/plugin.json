@@ -1,0 +1,5 @@
+{
+  "name": "create-issues",
+  "description": "Create GitHub issues in bulk from a structured JSON task file and link them to an existing milestone.",
+  "version": "1.0.0"
+}

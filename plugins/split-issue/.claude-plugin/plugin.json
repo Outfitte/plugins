@@ -1,0 +1,5 @@
+{
+  "name": "split-issue",
+  "description": "Split a GitHub issue into sub-issues, one per method, endpoint, handler, or logical unit.",
+  "version": "1.0.0"
+}
