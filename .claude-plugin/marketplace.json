@@ -1,0 +1,37 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "outfitte-plugins",
+  "owner": {
+    "name": "Outfitte"
+  },
+  "metadata": {
+    "description": "Skills and slash commands tailored to the Outfitte codebase"
+  },
+  "plugins": [
+    {
+      "name": "tdd",
+      "source": "./plugins/tdd",
+      "description": "TDD methodology for all coding tasks"
+    },
+    {
+      "name": "go-commands",
+      "source": "./plugins/go-commands",
+      "description": "Go build and test commands reference"
+    },
+    {
+      "name": "gh-cli",
+      "source": "./plugins/gh-cli",
+      "description": "GitHub operations via gh CLI"
+    },
+    {
+      "name": "create-issues",
+      "source": "./plugins/create-issues",
+      "description": "Bulk-create GitHub issues from a JSON task file"
+    },
+    {
+      "name": "split-issue",
+      "source": "./plugins/split-issue",
+      "description": "Decompose a GitHub issue into sub-issues"
+    }
+  ]
+}

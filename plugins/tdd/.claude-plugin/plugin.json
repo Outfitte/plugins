@@ -1,0 +1,5 @@
+{
+  "name": "tdd",
+  "description": "TDD methodology for all coding tasks. Use when implementing features, fixing bugs, writing functions, or any task that involves producing or modifying code.",
+  "version": "1.0.0"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "gh-cli",
+  "description": "Use this skill for any GitHub-related task using the gh CLI tool. Trigger when users ask to search for repos, list issues, view pull requests, check workflow runs, clone repos, create branches, manage releases, view file contents on GitHub, check repo stats, find repos by a user or org, or do anything involving GitHub.",
+  "version": "1.0.0"
+}

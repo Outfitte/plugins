@@ -1,0 +1,5 @@
+{
+  "name": "go-commands",
+  "description": "Go build and test commands reference. Use when building Go projects, running Go tests, checking coverage, managing dependencies, or cross-compiling for targets like Lambda.",
+  "version": "1.0.0"
+}
