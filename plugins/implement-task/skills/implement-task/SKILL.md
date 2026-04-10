@@ -86,20 +86,30 @@ EOF
 )"
 ```
 
-## Step 7b — Post coverage report as PR comment (Go projects only)
+## Step 7b — Post coverage report as PR comment
 
-Skip this step if the project is not a Go project.
+Skip this step only if the project has no coverage tooling at all.
 
-Identify which Go packages were modified from the staged files, then run coverage for those packages only:
+### Detect the coverage tool
 
-```bash
-go test -coverprofile=coverage.out ./<path-to-modified-packages>/...
-go tool cover -func=coverage.out
-```
+Identify the language and its coverage command from the project files:
 
-Coverage checks apply **exclusively to the modified packages** — unmodified packages are irrelevant to this task.
+| Language / toolchain | Coverage command | How to scope to modified files |
+|---|---|---|
+| Go | `go test -coverprofile=coverage.out ./<pkg>/...` then `go tool cover -func=coverage.out` | Pass only the packages that contain modified files |
+| TypeScript / Vitest | `npx vitest run --coverage` | Runs all; filter reported output to modified files |
+| TypeScript / Jest | `npx jest --coverage` | Runs all; filter reported output to modified files |
+| Python / pytest | `pytest --cov=<module> --cov-report=term-missing` | Pass only the modules that contain modified files |
+| Rust | `cargo tarpaulin --out Stdout` | Runs all; filter to modified crates |
+| Ruby / RSpec | `bundle exec rspec --format documentation` with SimpleCov | Filter to modified files |
 
-Extract the total coverage percentage from the last line of `go tool cover -func` output (e.g. `total: (statements) 87.5%`).
+If the project uses a different tool, infer the right command from `package.json`, `Makefile`, `pyproject.toml`, `Cargo.toml`, or similar config files.
+
+Coverage checks apply **exclusively to the modified files/packages** — unmodified code is irrelevant to this task.
+
+### Run coverage and extract the total
+
+Run the appropriate command and capture its output. Extract the overall coverage percentage from the summary line (e.g. `All files | 94 |`, `total: (statements) 87.5%`, `TOTAL ... 92%`).
 
 ### If total coverage is 100%
 
@@ -117,10 +127,10 @@ EOF
 
 ### If total coverage is less than 100%
 
-1. Review the `go tool cover -func` output to identify every function below 100%
+1. Review the output to identify every file/function below 100%
 2. Read the relevant source lines to understand what is not covered
 3. **If any uncovered lines can be covered with additional tests** — add those tests (return to the TDD loop), then re-run coverage and repeat this check
-4. Only after exhausting all feasible tests, post a comment that includes both the coverage output AND a mandatory justification section — one entry per under-covered function:
+4. Only after exhausting all feasible tests, post a comment that includes both the coverage output AND a mandatory justification section — one entry per under-covered file or function:
 
 ```bash
 gh pr comment <pr_number> --repo $REPO --body "$(cat <<'EOF'
@@ -131,8 +141,8 @@ gh pr comment <pr_number> --repo $REPO --body "$(cat <<'EOF'
 
 ## Why coverage is not 100%
 
-- `<package>/foo.go: Bar()` — 85.7%: the `os.WriteFile` error path requires OS-level fault injection and cannot be triggered in unit tests
-- ...one entry per under-covered function...
+- `src/foo.ts: bar()` — 85%: the error branch requires OS-level fault injection and cannot be triggered in unit tests
+- ...one entry per under-covered file or function...
 EOF
 )"
 ```
