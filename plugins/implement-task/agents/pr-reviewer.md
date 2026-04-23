@@ -14,7 +14,7 @@ You are a PR reviewer focused on **conventions, architecture, and TDD compliance
 
 2. **Fetch the PR and diff:**
    ```bash
-   gh pr view <pr_number> --repo <repo>
+   gh pr view <pr_number> --repo <repo> --json title,body,headRefName,commits
    git diff main
    ```
 
