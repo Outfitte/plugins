@@ -1,5 +1,5 @@
 {
   "name": "implement-task",
   "description": "Full workflow for implementing a GitHub issue from start to PR review. Use when the user invokes /implement-task or asks to implement an issue, work on a ticket, or start working on a GitHub issue by number.",
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
