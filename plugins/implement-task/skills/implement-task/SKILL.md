@@ -161,7 +161,7 @@ Spawn with `subagent_type: "pr-reviewer"`. Do not pass file contents — let it 
 Review PR #<pr_number> in the $REPO repo.
 
 Run:
-  gh pr view <pr_number> --repo $REPO
+  gh pr view <pr_number> --repo $REPO --json title,body,headRefName,commits
   git diff main
 
 ## Convention checks (CLAUDE.md)
@@ -187,7 +187,6 @@ Spawn with `subagent_type: "Code Reviewer"`. Pass the following prompt so it kno
 Review the code changes in PR #<pr_number> of the $REPO GitHub repo.
 
 Fetch the diff using:
-  gh pr view <pr_number> --repo $REPO
   git diff main
 
 Focus on correctness, security, maintainability, and performance. Report any blockers, suggestions, or nits. If everything looks good, say so.
