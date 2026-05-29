@@ -5,7 +5,7 @@ description: Use this skill when the user invokes /implement-task or asks to imp
 
 # Implement Task
 
-Full workflow for implementing a GitHub issue from start to PR review.
+Full workflow for implementing a GitHub issue from start to opening a PR.
 Follow all branch, commit, and PR conventions from CLAUDE.md.
 
 ## Step 0 — Detect current repo
@@ -63,30 +63,7 @@ git add <files>
 git commit -m "<number>: one sentence message"
 ```
 
-## Step 7 — Push and open PR
-
-```bash
-git push -u origin <branch>
-```
-
-Follow the PR title format from CLAUDE.md. PR body must include `Closes #<number>`.
-
-```bash
-gh pr create --title "<number>: short description" --body "$(cat <<'EOF'
-## Summary
-- <bullet points>
-
-## Test plan
-- [ ] <verification steps>
-
-Closes #<number>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
-```
-
-## Step 7b — Post coverage report as PR comment
+## Step 7 — Run coverage locally
 
 Skip this step only if the project has no coverage tooling at all.
 
@@ -107,65 +84,40 @@ If the project uses a different tool, infer the right command from `package.json
 
 Coverage checks apply **exclusively to the modified files/packages** — unmodified code is irrelevant to this task.
 
-### Run coverage and extract the total
+### Run coverage and capture the output
 
-Run the appropriate command and capture its output. Extract the overall coverage percentage from the summary line (e.g. `All files | 94 |`, `total: (statements) 87.5%`, `TOTAL ... 92%`).
+Run the appropriate command and capture its full output. Extract the overall coverage percentage from the summary line (e.g. `All files | 94 |`, `total: (statements) 87.5%`, `TOTAL ... 92%`).
 
-### If total coverage is 100%
-
-Post the standard comment:
-
-```bash
-gh pr comment <pr_number> --repo $REPO --body "$(cat <<'EOF'
-## Coverage report
-\`\`\`
-<coverage output>
-\`\`\`
-EOF
-)"
-```
+Store the full output — it will be embedded in the PR body in Step 9.
 
 ### If total coverage is less than 100%
 
 1. Review the output to identify every file/function below 100%
 2. Read the relevant source lines to understand what is not covered
-3. **If any uncovered lines can be covered with additional tests** — add those tests (return to the TDD loop), then re-run coverage and repeat this check
-4. Only after exhausting all feasible tests, post a comment that includes both the coverage output AND a mandatory justification section — one entry per under-covered file or function:
+3. **If any uncovered lines can be covered with additional tests** — add those tests (return to the TDD loop), commit the new tests, then re-run coverage and repeat this check
+4. Only after exhausting all feasible tests, note a justification for each under-covered file or function — this will be included in the PR body in Step 9
 
-```bash
-gh pr comment <pr_number> --repo $REPO --body "$(cat <<'EOF'
-## Coverage report
-\`\`\`
-<coverage output>
-\`\`\`
+A coverage section without a `## Why coverage is not 100%` justification is **not acceptable** in the PR body when coverage is below 100%.
 
-## Why coverage is not 100%
+## Step 8 — Pre-push review
 
-- `src/foo.ts: bar()` — 85%: the error branch requires OS-level fault injection and cannot be triggered in unit tests
-- ...one entry per under-covered file or function...
-EOF
-)"
-```
+Spawn two **foreground** subagents in parallel: a `pr-reviewer` (`subagent_type: "pr-reviewer"`) and a `Code Reviewer` (`subagent_type: "Code Reviewer"`). Both review the local diff — no PR exists yet.
 
-A bare coverage report without a `## Why coverage is not 100%` section is **not acceptable** when coverage is below 100%.
-
-## Step 8 — PR review (background)
-
-Spawn two **background** subagents in parallel: a `pr-reviewer` (`subagent_type: "pr-reviewer"`) and a `Code Reviewer` (`subagent_type: "Code Reviewer"`). Do not pass file contents — let them fetch from GitHub.
+Wait for both agents to complete before proceeding.
 
 ### pr-reviewer subagent
 
-Spawn with `subagent_type: "pr-reviewer"`. Do not pass file contents — let it fetch from GitHub:
+Spawn with `subagent_type: "pr-reviewer"`:
 
 ```
-Review PR #<pr_number> in the $REPO repo.
+Review the local changes for issue #<number> ("<issue title>") in the $REPO repo.
 
 Run:
-  gh pr view <pr_number> --repo $REPO --json title,body,headRefName,commits
+  git log main..HEAD --oneline
   git diff main
 
 ## Convention checks (CLAUDE.md)
-- Read CLAUDE.md first and check that branch, commit, and PR title follow the documented naming conventions
+- Read CLAUDE.md first and check that the branch name and commit messages follow the documented naming conventions
 - Check for any architecture or structural rules defined in CLAUDE.md and flag violations
 
 ## TDD checks
@@ -177,14 +129,12 @@ Run:
 Report any violations, concerns, or suggestions. If everything looks good, say so.
 ```
 
-Report the review findings to the user once complete.
-
 ### Code Reviewer subagent
 
-Spawn with `subagent_type: "Code Reviewer"`. Pass the following prompt so it knows where to find the code:
+Spawn with `subagent_type: "Code Reviewer"`:
 
 ```
-Review the code changes in PR #<pr_number> of the $REPO GitHub repo.
+Review the local code changes for issue #<number> ("<issue title>") in the $REPO repo.
 
 Fetch the diff using:
   git diff main
@@ -192,17 +142,58 @@ Fetch the diff using:
 Focus on correctness, security, maintainability, and performance. Report any blockers, suggestions, or nits. If everything looks good, say so.
 ```
 
-Report the review findings to the user once complete.
+### Step 8b — Address blockers
 
-## Step 9 — Capture learnings
+After both reviews complete:
 
-After the PR review is done, reflect on what happened during this implementation session. Ask: **did anything non-obvious come up that would help future sessions?**
+- If either review flags **blockers** (🔴): implement the required fixes, commit, then loop back to Step 7 (re-run coverage, then re-run both reviews).
+- If there are only suggestions or nits (🟡 / 💭): use your judgement; address important ones before proceeding.
+- When no blockers remain, continue to Step 9.
+
+## Step 9 — Push and open PR
+
+```bash
+git push -u origin <branch>
+```
+
+Follow the PR title format from CLAUDE.md.
+
+```bash
+gh pr create --title "<number>: short description" --body "$(cat <<'EOF'
+## Summary
+- <bullet points>
+
+## Test plan
+- [ ] <verification steps>
+
+## Coverage report
+\`\`\`
+<coverage output from Step 7>
+\`\`\`
+
+## Why coverage is not 100%
+
+- `src/foo.ts: bar()` — 85%: the error branch requires OS-level fault injection and cannot be triggered in unit tests
+- ...one entry per under-covered file or function...
+
+Closes #<number>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+Omit the `## Why coverage is not 100%` section entirely if coverage is 100%.
+
+## Step 10 — Capture learnings
+
+After the PR is open, reflect on what happened during this implementation session. Ask: **did anything non-obvious come up that would help future sessions?**
 
 Examples of things worth capturing:
 - A pattern or convention discovered from reading existing code (e.g. how errors are wrapped, how tests are structured)
 - A decision made that isn't obvious from the code (e.g. why a certain approach was chosen over another)
 - A gotcha or edge case that caused confusion or required backtracking
-- A new rule that emerged from PR review feedback
+- A new rule that emerged from review feedback
 
 ### What to update
 

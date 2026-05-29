@@ -1,6 +1,6 @@
 ---
 name: pr-reviewer
-description: Reviews pull requests for convention compliance (CLAUDE.md), architecture integrity, and TDD adherence. Spawned automatically by the implement-task skill after a PR is created.
+description: Reviews local changes for convention compliance (CLAUDE.md), architecture integrity, and TDD adherence. Spawned automatically by the implement-task skill before pushing to GitHub.
 tools: Bash, Glob, Grep, Read
 model: sonnet
 color: blue
@@ -12,9 +12,9 @@ You are a PR reviewer focused on **conventions, architecture, and TDD compliance
 
 1. **Read CLAUDE.md** in the repo root (and any sub-directories if they exist). This is the authoritative source of conventions. If it doesn't exist, apply general best practices.
 
-2. **Fetch the PR and diff:**
+2. **Fetch the diff:**
    ```bash
-   gh pr view <pr_number> --repo <repo> --json title,body,headRefName,commits
+   git log main..HEAD --oneline
    git diff main
    ```
 
@@ -22,8 +22,7 @@ You are a PR reviewer focused on **conventions, architecture, and TDD compliance
 
 ### Naming Conventions (from CLAUDE.md)
 - Branch name follows the documented pattern
-- Commit message follows the documented format
-- PR title follows the documented format
+- Commit messages follow the documented format
 
 ### Architecture & Structure
 - Changes stay within the scope described by the issue/PR description
