@@ -54,6 +54,8 @@ Read relevant existing code before writing. Follow the architecture rules in CLA
 
 If the task involves writing or modifying code, load and follow the `tdd` skill **before writing any tests or production code**. The TDD loop must be followed strictly: write one failing test, make it pass with minimal code, then move to the next test. Never write multiple tests upfront, and never implement the full body before each individual test is red.
 
+If the change alters user-visible or API behaviour, grep the e2e specs for what you changed (route paths, UI strings, selectors, response fields, function names) — e.g. `grep -rn "<changed symbol or string>" e2e/ tests/ --include='*.ts' --include='*.js'` — and update every spec that asserts the old behaviour. Those specs must be run in Step 7, not left for CI to find.
+
 ## Step 6 — Commit
 
 Stage only the files changed for this issue. Follow the commit message format from CLAUDE.md.
@@ -63,13 +65,32 @@ git add <files>
 git commit -m "<number>: one sentence message"
 ```
 
-## Step 7 — Run coverage locally
+## Step 7 — Pre-push gate (mandatory)
 
-Skip this step only if the project has no coverage tooling at all.
+CI failures that could have been caught locally waste a CI run. **Do not push — the first push or any later one — until every check below passes locally.** Re-run this whole step before every push, including pushes that only add a fix commit.
 
-### Detect the coverage tool
+### 7a. Run the repo's CI mirror
 
-Identify the language and its coverage command from the project files:
+1. If `package.json` (or the Makefile / task runner) has a `ci:local` script, run it: `npm run ci:local`. Also run `ci:local:full` when the change touches DB / migrations, API handlers / routes, or e2e-covered areas — it adds the integration and e2e suites.
+2. Otherwise derive the commands from the CI workflow: read `.github/workflows/*.yml` and run, in the same order, every check step of the PR job(s) (lint, format check, audits, typecheck, tests with coverage, and so on). Skip only steps that cannot run locally (uploads, cache, runner setup). Run e2e / integration steps when the change touches areas they cover.
+3. Fix every failure and re-run until the whole gate is green. Never push on a "will fix in CI" basis.
+
+### 7b. Check the PR title
+
+If the repo has commitlint (`commitlint.config.*` or a `commitlint` dependency), lint the exact PR title you will use in Step 9:
+
+```bash
+echo "<pr title>" | npx commitlint
+```
+
+The commit-message and PR-title format in CLAUDE.md wins over the example in Step 9. Also make sure every commit message passes the commit-msg hook. **Never use `--no-verify`** on commit or push; if a hook fails, fix the cause.
+
+### 7c. Check coverage of the change (before the push)
+
+Skip only if the project has no coverage tooling at all. Coverage applies **exclusively to modified lines/files** — unmodified code is irrelevant to this task.
+
+- If the repo has a `coverage:patch` script, run it (after the coverage run that produces its input; `ci:local` already does both). It lists uncovered changed lines and the patch %, and fails below the target.
+- Otherwise run the project's coverage command and check that **every changed source line is covered**:
 
 | Language / toolchain | Coverage command | How to scope to modified files |
 |---|---|---|
@@ -82,22 +103,19 @@ Identify the language and its coverage command from the project files:
 
 If the project uses a different tool, infer the right command from `package.json`, `Makefile`, `pyproject.toml`, `Cargo.toml`, or similar config files.
 
-Coverage checks apply **exclusively to the modified files/packages** — unmodified code is irrelevant to this task.
+Store the coverage output — it will be embedded in the PR body in Step 9.
 
-### Run coverage and capture the output
+**If any changed line is uncovered:**
 
-Run the appropriate command and capture its full output. Extract the overall coverage percentage from the summary line (e.g. `All files | 94 |`, `total: (statements) 87.5%`, `TOTAL ... 92%`).
+1. Identify every uncovered changed line/function
+2. **If it can be covered with additional tests** — add those tests (return to the TDD loop), commit, then re-run this whole step
+3. Only after exhausting all feasible tests, note a justification for each remaining uncovered line or function — it goes in the PR body in Step 9
 
-Store the full output — it will be embedded in the PR body in Step 9.
+A coverage section without a `## Why coverage is not 100%` justification is **not acceptable** in the PR body when changed code is uncovered.
 
-### If total coverage is less than 100%
+### 7d. Run the e2e specs you touched
 
-1. Review the output to identify every file/function below 100%
-2. Read the relevant source lines to understand what is not covered
-3. **If any uncovered lines can be covered with additional tests** — add those tests (return to the TDD loop), commit the new tests, then re-run coverage and repeat this check
-4. Only after exhausting all feasible tests, note a justification for each under-covered file or function — this will be included in the PR body in Step 9
-
-A coverage section without a `## Why coverage is not 100%` justification is **not acceptable** in the PR body when coverage is below 100%.
+Run the e2e specs you updated or found by grep in Step 5 (and `ci:local:full` where applicable). A behaviour change with a stale e2e spec is a CI failure waiting to happen.
 
 ## Step 8 — Pre-push review
 
@@ -146,11 +164,13 @@ Focus on correctness, security, maintainability, and performance. Report any blo
 
 After both reviews complete:
 
-- If either review flags **blockers** (🔴): implement the required fixes, commit, then loop back to Step 7 (re-run coverage, then re-run both reviews).
+- If either review flags **blockers** (🔴): implement the required fixes, commit, then loop back to Step 7 (re-run the whole pre-push gate, then re-run both reviews).
 - If there are only suggestions or nits (🟡 / 💭): use your judgement; address important ones before proceeding.
 - When no blockers remain, continue to Step 9.
 
 ## Step 9 — Push and open PR
+
+Step 7 must have passed on the exact commit you are about to push. Check that no CI run for this branch is in progress (`gh pr checks` / `gh run list --branch <branch>`) — see Step 11.
 
 ```bash
 git push -u origin <branch>
@@ -168,7 +188,7 @@ gh pr create --title "<number>: short description" --body "$(cat <<'EOF'
 
 ## Coverage report
 \`\`\`
-<coverage output from Step 7>
+<coverage output from Step 7c>
 \`\`\`
 
 ## Why coverage is not 100%
@@ -183,7 +203,7 @@ EOF
 )"
 ```
 
-Omit the `## Why coverage is not 100%` section entirely if coverage is 100%.
+Omit the `## Why coverage is not 100%` section entirely if every changed line is covered.
 
 ## Step 10 — Capture learnings
 
@@ -213,3 +233,11 @@ Add the learning under the most relevant existing section, or create a new secti
 ### How to update memory
 
 Use the Write tool to create or update the relevant memory file in the project's memory directory (check `~/.claude/projects/` for the matching project path), then update `MEMORY.md` with a pointer if it's a new file.
+
+## Step 11 — Fixing CI or review feedback after the PR is open
+
+Every later push follows the same rules as the first:
+
+1. **Never push while a CI run for the PR is still in progress** (`gh pr checks <pr>` shows pending, or `gh run list --branch <branch>` shows `in_progress`/`queued`). A push cancels or races that run and wastes the runner. Wait for it to finish (`gh pr checks <pr> --watch --interval 60`), collect *all* failures and review comments, and fix them in one batch.
+2. Re-run the whole Step 7 gate locally for the batch, then push once.
+3. If the PR title changes, re-lint it with commitlint (Step 7b). Never use `--no-verify`.
